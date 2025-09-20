@@ -192,31 +192,9 @@ export class Renderer {
   }
 
   castRay(originX, originY, angle, map, maxDepth) {
-    if (!map || !Array.isArray(map) || map.length === 0 || !Array.isArray(map[0])) {
-      return maxDepth;
+    if (this.engine && this.engine.physics && this.engine.physics.castRay) {
+      return this.engine.physics.castRay(originX, originY, angle, maxDepth);
     }
-
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-    let x = originX;
-    let y = originY;
-    const mapWidth = map[0].length;
-    const mapHeight = map.length;
-
-    for (let depth = 0; depth < maxDepth; depth += 0.05) {
-      const testX = Math.floor(x);
-      const testY = Math.floor(y);
-
-      if (testX < 0 || testX >= mapWidth ||
-          testY < 0 || testY >= mapHeight ||
-          map[testY][testX] === 1) {
-        return depth;
-      }
-
-      x += cos * 0.05;
-      y += sin * 0.05;
-    }
-
     return maxDepth;
   }
 

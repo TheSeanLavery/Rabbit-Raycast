@@ -101,25 +101,9 @@ export class GameEngine {
   }
 
   castRay(angle) {
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-    let x = this.player.x;
-    let y = this.player.y;
-
-    for (let depth = 0; depth < this.maxDepth; depth += 0.1) {
-      const testX = Math.floor(x);
-      const testY = Math.floor(y);
-
-      if (testX < 0 || testX >= this.mapWidth ||
-          testY < 0 || testY >= this.mapHeight ||
-          this.map[testY][testX] === 1) {
-        return depth;
-      }
-
-      x += cos * 0.1;
-      y += sin * 0.1;
+    if (this.physics && this.physics.castRay) {
+      return this.physics.castRay(this.player.x, this.player.y, angle, this.maxDepth);
     }
-
     return this.maxDepth;
   }
 

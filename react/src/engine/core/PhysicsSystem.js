@@ -31,6 +31,54 @@ export class PhysicsSystem {
     this.world = worldData;
     this.collisionLayers.clear();
     this.raycastCache.clear();
+
+    // Build a flattened 1D map and compute widthShift fast-path when width is power of two
+    if (this.world && Array.isArray(this.world.map) && this.world.width && this.world.height) {
+      const width = this.world.width;
+      const height = this.world.height;
+      const size = width * height;
+
+      const map1D = new Uint8Array(size);
+      for (let y = 0; y < height; y++) {
+        const row = this.world.map[y];
+        const offset = y * width;
+        for (let x = 0; x < width; x++) {
+          map1D[offset + x] = row[x] ? 1 : 0;
+        }
+      }
+
+      // If width is power of two, use bit-shift for row offset
+      const isPowerOfTwo = (width & (width - 1)) === 0;
+      const widthShift = isPowerOfTwo ? (31 - Math.clz32(width)) : null;
+
+      this.world.map1D = map1D;
+      this.world.widthShift = widthShift;
+    } else if (this.world) {
+      this.world.map1D = null;
+      this.world.widthShift = null;
+    }
+  }
+
+  /**
+   * Fast wall check at integer map coordinates with 1D map and shift fast-path.
+   * Treats out-of-bounds as walls.
+   */
+  isWallAtMapCoord(mapX, mapY) {
+    if (!this.world) return false;
+
+    if (mapX < 0 || mapX >= this.world.width || mapY < 0 || mapY >= this.world.height) {
+      return true;
+    }
+
+    if (this.world.map1D) {
+      const idx = this.world.widthShift != null
+        ? ((mapY << this.world.widthShift) + mapX)
+        : (mapY * this.world.width + mapX);
+      return this.world.map1D[idx] === 1;
+    }
+
+    // Fallback to 2D map
+    return this.world.map[mapY][mapX] === 1;
   }
 
   /**
@@ -48,7 +96,7 @@ export class PhysicsSystem {
     }
 
     // Check wall collision at center
-    if (this.world.map[mapY][mapX] === 1) {
+    if (this.isWallAtMapCoord(mapX, mapY)) {
       return false;
     }
 
@@ -71,9 +119,7 @@ export class PhysicsSystem {
         const cMapX = Math.floor(cx);
         const cMapY = Math.floor(cy);
 
-        if (cMapX < 0 || cMapX >= this.world.width ||
-            cMapY < 0 || cMapY >= this.world.height ||
-            this.world.map[cMapY][cMapX] === 1) {
+        if (this.isWallAtMapCoord(cMapX, cMapY)) {
           return false;
         }
       }
@@ -105,9 +151,7 @@ export class PhysicsSystem {
       const testX = Math.floor(x);
       const testY = Math.floor(y);
 
-      if (testX < 0 || testX >= this.world.width ||
-          testY < 0 || testY >= this.world.height ||
-          this.world.map[testY][testX] === 1) {
+      if (this.isWallAtMapCoord(testX, testY)) {
         const result = depth;
         this.raycastCache.set(cacheKey, result);
         return result;
