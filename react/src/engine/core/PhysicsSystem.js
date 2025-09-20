@@ -10,12 +10,14 @@ export class PhysicsSystem {
     this.engine = engine;
     this.world = null;
     this.collisionLayers = new Map();
+    // Nested cache: Map<qx, Map<qy, Map<qa, distance>>>
     this.raycastCache = new Map();
+    this.raycastCacheSize = 0;
   }
 
   init(engine) {
     this.engine = engine;
-    console.log('⚡ Physics System initialized');
+    
   }
 
   update(deltaTime) {
@@ -31,6 +33,7 @@ export class PhysicsSystem {
     this.world = worldData;
     this.collisionLayers.clear();
     this.raycastCache.clear();
+    this.raycastCacheSize = 0;
 
     // Build a flattened 1D map and compute widthShift fast-path when width is power of two
     if (this.world && Array.isArray(this.world.map) && this.world.width && this.world.height) {
@@ -100,29 +103,23 @@ export class PhysicsSystem {
       return false;
     }
 
-    // Check radius-based collision for smoother movement
+    // Check radius-based collision for smoother movement (inline, no array alloc)
     if (radius > 0) {
-      // Use 8 directional checks plus center for better collision detection
-      const checkPoints = [
-        [x, y], // Center
-        [x - radius, y], // Left
-        [x + radius, y], // Right
-        [x, y - radius], // Top
-        [x, y + radius], // Bottom
-        [x - radius * 0.7, y - radius * 0.7], // Top-left
-        [x + radius * 0.7, y - radius * 0.7], // Top-right
-        [x - radius * 0.7, y + radius * 0.7], // Bottom-left
-        [x + radius * 0.7, y + radius * 0.7]  // Bottom-right
-      ];
+      const r = radius;
+      const r7 = r * 0.7;
 
-      for (const [cx, cy] of checkPoints) {
-        const cMapX = Math.floor(cx);
-        const cMapY = Math.floor(cy);
-
-        if (this.isWallAtMapCoord(cMapX, cMapY)) {
-          return false;
-        }
-      }
+      // Center
+      if (this.isWallAtMapCoord(Math.floor(x), Math.floor(y))) return false;
+      // Cardinal directions
+      if (this.isWallAtMapCoord(Math.floor(x - r), Math.floor(y))) return false;
+      if (this.isWallAtMapCoord(Math.floor(x + r), Math.floor(y))) return false;
+      if (this.isWallAtMapCoord(Math.floor(x), Math.floor(y - r))) return false;
+      if (this.isWallAtMapCoord(Math.floor(x), Math.floor(y + r))) return false;
+      // Diagonals
+      if (this.isWallAtMapCoord(Math.floor(x - r7), Math.floor(y - r7))) return false;
+      if (this.isWallAtMapCoord(Math.floor(x + r7), Math.floor(y - r7))) return false;
+      if (this.isWallAtMapCoord(Math.floor(x - r7), Math.floor(y + r7))) return false;
+      if (this.isWallAtMapCoord(Math.floor(x + r7), Math.floor(y + r7))) return false;
     }
 
     return true;
@@ -132,38 +129,106 @@ export class PhysicsSystem {
    * Cast a ray and return the distance to the nearest wall
    */
   castRay(originX, originY, angle, maxDistance = 20) {
-    // Round coordinates and angle for better caching
-    const cacheKey = `${originX.toFixed(1)},${originY.toFixed(1)},${angle.toFixed(2)}`;
-
-    // Check cache first
-    if (this.raycastCache.has(cacheKey)) {
-      return this.raycastCache.get(cacheKey);
-    }
-
     if (!this.world) return maxDistance;
 
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-    let x = originX;
-    let y = originY;
+    // Quantize inputs and check nested cache
+    const angleNorm = ((angle % (Math.PI * 2)) + (Math.PI * 2)) % (Math.PI * 2);
+    const qx = (Math.round(originX * 10)) | 0; // 0.1 units
+    const qy = (Math.round(originY * 10)) | 0;
+    const qa = (Math.round(angleNorm * 100)) | 0; // ~0.01 rad
 
-    for (let depth = 0; depth < maxDistance; depth += 0.05) {
-      const testX = Math.floor(x);
-      const testY = Math.floor(y);
-
-      if (this.isWallAtMapCoord(testX, testY)) {
-        const result = depth;
-        this.raycastCache.set(cacheKey, result);
-        return result;
+    const cachedY = this.raycastCache.get(qx);
+    if (cachedY) {
+      const cachedA = cachedY.get(qy);
+      if (cachedA && cachedA.has(qa)) {
+        return cachedA.get(qa);
       }
-
-      x += cos * 0.05;
-      y += sin * 0.05;
     }
 
-    const result = maxDistance;
-    this.raycastCache.set(cacheKey, result);
-    return result;
+    // DDA ray traversal
+    const rayDirX = Math.cos(angle);
+    const rayDirY = Math.sin(angle);
+
+    let mapX = Math.floor(originX);
+    let mapY = Math.floor(originY);
+
+    const veryLarge = 1e30;
+    const deltaDistX = rayDirX !== 0 ? Math.abs(1 / rayDirX) : veryLarge;
+    const deltaDistY = rayDirY !== 0 ? Math.abs(1 / rayDirY) : veryLarge;
+
+    let stepX, stepY;
+    let sideDistX, sideDistY;
+
+    if (rayDirX < 0) {
+      stepX = -1;
+      sideDistX = (originX - mapX) * deltaDistX;
+    } else {
+      stepX = 1;
+      sideDistX = (mapX + 1 - originX) * deltaDistX;
+    }
+
+    if (rayDirY < 0) {
+      stepY = -1;
+      sideDistY = (originY - mapY) * deltaDistY;
+    } else {
+      stepY = 1;
+      sideDistY = (mapY + 1 - originY) * deltaDistY;
+    }
+
+    let hit = false;
+    let side = 0; // 0=x side, 1=y side
+    let distance = 0;
+
+    while (!hit) {
+      if (sideDistX < sideDistY) {
+        sideDistX += deltaDistX;
+        mapX += stepX;
+        side = 0;
+      } else {
+        sideDistY += deltaDistY;
+        mapY += stepY;
+        side = 1;
+      }
+
+      if (this.isWallAtMapCoord(mapX, mapY)) {
+        hit = true;
+        if (side === 0) {
+          distance = (mapX - originX + (1 - stepX) * 0.5) / (rayDirX !== 0 ? rayDirX : 1e-6);
+        } else {
+          distance = (mapY - originY + (1 - stepY) * 0.5) / (rayDirY !== 0 ? rayDirY : 1e-6);
+        }
+        distance = Math.abs(distance);
+        if (!Number.isFinite(distance) || distance <= 0) {
+          distance = 0;
+        }
+        if (distance > maxDistance) distance = maxDistance;
+        break;
+      }
+
+      // Early-out if we marched beyond maxDistance along both axes
+      const approxDist = Math.min(sideDistX, sideDistY);
+      if (approxDist > maxDistance + 1) {
+        distance = maxDistance;
+        break;
+      }
+    }
+
+    // Store in nested cache
+    let byY = this.raycastCache.get(qx);
+    if (!byY) {
+      byY = new Map();
+      this.raycastCache.set(qx, byY);
+    }
+    let byA = byY.get(qy);
+    if (!byA) {
+      byA = new Map();
+      byY.set(qy, byA);
+    }
+    if (!byA.has(qa)) {
+      this.raycastCacheSize++;
+    }
+    byA.set(qa, distance);
+    return distance;
   }
 
   /**
@@ -253,12 +318,10 @@ export class PhysicsSystem {
    * Update raycast cache (remove old entries)
    */
   updateRaycastCache() {
-    // More aggressive cache management for better performance
-    if (this.raycastCache.size > 500) {
-      // Clear 30% of the cache to maintain performance
-      const entries = Array.from(this.raycastCache.entries());
-      const toRemove = entries.slice(0, Math.floor(entries.length * 0.3));
-      toRemove.forEach(([key]) => this.raycastCache.delete(key));
+    // Cheap eviction: clear entirely when too large
+    if (this.raycastCacheSize > 2000) {
+      this.raycastCache.clear();
+      this.raycastCacheSize = 0;
     }
   }
 

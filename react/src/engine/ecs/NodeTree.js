@@ -443,7 +443,7 @@ export class Node extends Entity {
    */
   printTree(indent = 0) {
     const prefix = '  '.repeat(indent);
-    console.log(`${prefix}${this.name} (${this.constructor.name})`);
+    
 
     for (const child of this.children) {
       child.printTree(indent + 1);

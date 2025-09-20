@@ -8,14 +8,17 @@ export class Renderer {
     this.muzzleFlash = 0;
 
     if (!this.ctx) {
-      console.error('Renderer: Failed to get 2D context from canvas');
+      
     }
 
     // Canvas dimensions (will be set by scene)
     this.width = canvas.width || 240;
     this.height = canvas.height || 320;
 
-    console.log('Renderer initialized', { width: this.width, height: this.height, hasContext: !!this.ctx });
+    // Reused array for enemy draw items
+    this._enemyDrawList = [];
+
+    
   }
 
   render(scene) {
@@ -81,68 +84,47 @@ export class Renderer {
       effectiveRayCount = Math.max(30, Math.floor(rayCount * 0.75)); // Reduce to 75% at medium FPS
     }
 
-    // Collect all renderable objects with their distances
-    const renderQueue = [];
-
-    // Add walls to render queue
+    // Render walls directly per column (no queue, no sort)
     for (let x = 0; x < effectiveRayCount; x++) {
       const rayAngle = player.angle - fov / 2 + (x / effectiveRayCount) * fov;
       const distance = this.castRay(player.x, player.y, rayAngle, map, maxDepth);
-
-      renderQueue.push({
-        type: 'wall',
-        x: x,
-        distance: distance,
-        rayAngle: rayAngle
-      });
+      this.renderWallColumn(x, distance, rayAngle, effectiveRayCount, maxDepth);
     }
 
-    // Add enemies to render queue with distance culling
+    // Build enemy draw list with distance culling and LOS (reused array)
+    const enemyDrawList = this._enemyDrawList;
+    enemyDrawList.length = 0;
     if (enemies && Array.isArray(enemies)) {
-      enemies.forEach((enemy, index) => {
+      for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
         const dx = enemy.x - player.x;
         const dy = enemy.y - player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > maxDepth * 1.5) continue; // distance culling
 
-        // Distance culling - don't render enemies too far away
-        if (distance > maxDepth * 1.5) return;
-
-        // Calculate angle relative to player
-        const angle = Math.atan2(dy, dx) - player.angle;
-
-        // Normalize angle to -PI to PI
-        let normalizedAngle = angle;
+        // Angle relative to player
+        const angleToEnemy = Math.atan2(dy, dx);
+        let normalizedAngle = angleToEnemy - player.angle;
         while (normalizedAngle > Math.PI) normalizedAngle -= 2 * Math.PI;
         while (normalizedAngle < -Math.PI) normalizedAngle += 2 * Math.PI;
+        if (Math.abs(normalizedAngle) >= fov / 2) continue; // not in FOV
 
-        // Check if enemy is in field of view
-        if (Math.abs(normalizedAngle) < fov / 2) {
-          // Check line of sight (not behind walls)
-          const rayDistance = this.castRay(player.x, player.y, Math.atan2(dy, dx), map, maxDepth);
-          if (rayDistance >= distance) {
-            renderQueue.push({
-              type: 'enemy',
-              enemy: enemy,
-              distance: distance,
-              angle: normalizedAngle,
-              index: index
-            });
-          }
-        }
-      });
+        // Line of sight
+        const rayDistance = this.castRay(player.x, player.y, angleToEnemy, map, maxDepth);
+        if (rayDistance < distance) continue; // blocked
+
+        enemyDrawList.push({ enemy, distance, angle: normalizedAngle });
+      }
     }
 
-    // Sort by distance (closest first for proper depth - render far to near)
-    renderQueue.sort((a, b) => b.distance - a.distance);
-
-    // Render in depth order
-    renderQueue.forEach(item => {
-      if (item.type === 'wall') {
-        this.renderWallColumn(item.x, item.distance, item.rayAngle, effectiveRayCount, maxDepth);
-      } else if (item.type === 'enemy') {
-        this.renderEnemySprite(item.enemy, item.distance, item.angle, fov);
-      }
-    });
+    // Sort enemies by distance (far to near) and render
+    if (enemyDrawList.length > 1) {
+      enemyDrawList.sort((a, b) => b.distance - a.distance);
+    }
+    for (let i = 0; i < enemyDrawList.length; i++) {
+      const item = enemyDrawList[i];
+      this.renderEnemySprite(item.enemy, item.distance, item.angle, fov);
+    }
   }
 
   renderWallColumn(x, distance, rayAngle, rayCount, maxDepth) {

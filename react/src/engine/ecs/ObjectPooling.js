@@ -406,7 +406,6 @@ export class PoolManager {
    */
   preloadPools() {
     // Preload common pools
-    console.log('🔄 Preloading object pools...');
 
     // This would be customized based on game needs
     // Example: preload enemy entities, bullets, particles, etc.
@@ -521,7 +520,7 @@ export class PoolManager {
         // Increase pool size
         const newSize = Math.min(pool.maxSize, stats.pooled * 2);
         pool.resize(newSize);
-        console.log(`📈 Auto-resized pool '${name}' to ${newSize}`);
+        
       }
     }
 
@@ -533,7 +532,7 @@ export class PoolManager {
       if (utilization > targetUtilization && stats.pooled < pool.pool.maxSize) {
         const newSize = Math.min(pool.pool.maxSize, stats.pooled * 2);
         pool.pool.resize(newSize);
-        console.log(`📈 Auto-resized entity pool '${name}' to ${newSize}`);
+        
       }
     }
 
@@ -544,7 +543,7 @@ export class PoolManager {
       if (utilization > targetUtilization && stats.pooled < pool.pool.maxSize) {
         const newSize = Math.min(pool.pool.maxSize, stats.pooled * 2);
         pool.pool.resize(newSize);
-        console.log(`📈 Auto-resized component pool '${name}' to ${newSize}`);
+        
       }
     }
   }

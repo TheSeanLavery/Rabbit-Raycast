@@ -37,7 +37,7 @@ export class DoomDemoScene extends Scene {
     this.enemyUpdateCounter = 0;
     this.enemyUpdateFrequency = 2; // Update every other frame
 
-    console.log('DoomDemoScene: Constructor called, levelManager created:', !!this.levelManager);
+    
 
     // Performance test state
     this.perfTestActive = false;
@@ -51,13 +51,13 @@ export class DoomDemoScene extends Scene {
   }
 
   async onEnter(transitionData = {}) {
-    console.log('🎮 Starting Doom Demo...');
+    
 
     // Create player first
     this.player = new Player(8.5, 5.5);
     this.addEntity(this.player);
 
-    console.log('DoomDemo: Player created at', this.player.x, this.player.y);
+    
 
     // Initialize physics world
     this.loadLevel(this.currentLevel);
@@ -77,18 +77,11 @@ export class DoomDemoScene extends Scene {
     this.fov = Math.PI / 2.5;
     this.maxDepth = 20;
 
-    console.log('✅ Doom Demo initialized', {
-      player: !!this.player,
-      map: !!this.map,
-      enemies: this.enemies.length,
-      dimensions: `${this.width}x${this.height}`,
-      playerPos: `${this.player.x}, ${this.player.y}`,
-      isActive: this.isActive
-    });
+    
   }
 
   async onExit() {
-    console.log('🎮 Exiting Doom Demo...');
+    
     this.cleanup();
   }
 
@@ -124,12 +117,7 @@ export class DoomDemoScene extends Scene {
     // We just need to render HUD and overlays on top
     this.renderHUD(renderer);
     this.renderGameStateOverlays(renderer);
-    console.log('DoomDemo: onRender called', {
-      gameState: this.gameState,
-      hasPlayer: !!this.player,
-      playerHealth: this.player?.health,
-      enemies: this.enemies.length
-    });
+    
 
     // Render perf overlays
     this.renderPerfOverlay(renderer);
@@ -140,7 +128,7 @@ export class DoomDemoScene extends Scene {
    */
   setJoystickMovement(movement) {
     this.joystickMovement = movement;
-    console.log('DoomDemo: Joystick movement set', movement);
+    
   }
 
   /**
@@ -158,7 +146,7 @@ export class DoomDemoScene extends Scene {
     this.engine.input.keyMappings.set('shoot', ['Space']);
     this.engine.input.keyMappings.set('use', ['KeyE']);
 
-    console.log('DoomDemo: Input mappings set up');
+    
   }
 
   /**
@@ -171,11 +159,7 @@ export class DoomDemoScene extends Scene {
       return;
     }
 
-    console.log('DoomDemo: Loading level data', levelData.name, {
-      mapWidth: levelData.map[0].length,
-      mapHeight: levelData.map.length,
-      enemySpawns: levelData.enemySpawns.length
-    });
+    
 
     // Store map data for renderer
     this.map = levelData.map;
@@ -192,12 +176,7 @@ export class DoomDemoScene extends Scene {
     const playerY = Math.floor(this.player.y);
     const isValidPosition = this.engine.physics.isValidPosition(this.player.x, this.player.y);
 
-    console.log('DoomDemo: Player position check', {
-      playerPos: `${this.player.x}, ${this.player.y}`,
-      mapPos: `${playerX}, ${playerY}`,
-      mapValue: this.map[playerY] ? this.map[playerY][playerX] : 'undefined',
-      isValid: isValidPosition
-    });
+    
 
     // Clear existing enemies
     this.enemies.forEach(enemy => this.removeEntity(enemy));
@@ -213,12 +192,7 @@ export class DoomDemoScene extends Scene {
     this.gameStats.enemies = this.enemies.length;
     this.gameStats.level = levelIndex;
 
-    console.log(`📍 Loaded level: ${levelData.name}`, {
-      mapSize: `${levelData.map[0].length}x${levelData.map.length}`,
-      enemies: this.enemies.length,
-      playerPos: `${this.player.x}, ${this.player.y}`,
-      playerValid: isValidPosition
-    });
+    
   }
 
   /**
@@ -584,7 +558,7 @@ export class DoomDemoScene extends Scene {
     this.autopilotPhase = 0;
     this.autopilotTimer = 0;
     this.joystickMovement = { x: 0, y: 0, magnitude: 0 };
-    console.log('▶️ Performance test started', { durationMs });
+    
   }
 
   /**
@@ -652,7 +626,7 @@ export class DoomDemoScene extends Scene {
 
     this.showPerfOverlayUntil = performance.now() + 8000; // show for 8s
     this.joystickMovement = { x: 0, y: 0, magnitude: 0 };
-    console.log('✅ Performance test finished', this.perfResults);
+    
   }
 
   /**

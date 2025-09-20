@@ -16,7 +16,7 @@ export class SceneManager {
 
   init(engine) {
     this.engine = engine;
-    console.log('🎭 Scene Manager initialized');
+    
   }
 
   /**
@@ -24,7 +24,7 @@ export class SceneManager {
    */
   registerScene(name, sceneClass) {
     this.scenes.set(name, sceneClass);
-    console.log(`📄 Scene registered: ${name}`);
+    
   }
 
   /**
@@ -32,13 +32,13 @@ export class SceneManager {
    */
   async loadScene(name, transitionData = {}) {
     if (this.isTransitioning) {
-      console.warn('Scene transition already in progress');
+      
       return false;
     }
 
     const sceneClass = this.scenes.get(name);
     if (!sceneClass) {
-      console.error(`Scene not found: ${name}`);
+      
       return false;
     }
 
@@ -55,16 +55,11 @@ export class SceneManager {
       this.currentScene = new sceneClass(this.engine);
       await this.currentScene.enter(transitionData);
 
-      console.log(`🎭 Scene loaded: ${name}`, {
-        hasPlayer: !!this.currentScene.player,
-        hasMap: !!this.currentScene.map,
-        mapSize: this.currentScene.map ? `${this.currentScene.map[0]?.length}x${this.currentScene.map.length}` : 'none',
-        enemies: this.currentScene.enemies?.length || 0
-      });
+      
       return true;
 
     } catch (error) {
-      console.error(`Failed to load scene ${name}:`, error);
+      
       return false;
     } finally {
       this.isTransitioning = false;
@@ -80,9 +75,9 @@ export class SceneManager {
     try {
       await this.currentScene.exit();
       this.currentScene = null;
-      console.log('🎭 Scene unloaded');
+      
     } catch (error) {
-      console.error('Failed to unload scene:', error);
+      
     }
   }
 
@@ -91,7 +86,7 @@ export class SceneManager {
    */
   async goBack(transitionData = {}) {
     if (this.sceneStack.length === 0) {
-      console.warn('No previous scene to go back to');
+      
       return false;
     }
 
@@ -136,7 +131,7 @@ export class SceneManager {
     if (this.currentScene && !this.isTransitioning) {
       this.currentScene.render(renderer);
     } else {
-      console.log('SceneManager: No current scene to render or transitioning', { hasScene: !!this.currentScene, isTransitioning: this.isTransitioning });
+      
     }
   }
 
@@ -173,7 +168,7 @@ export class Scene {
    */
   async enter(transitionData = {}) {
     this.isActive = true;
-    console.log(`🎭 Entering scene: ${this.name}`);
+    
     await this.onEnter(transitionData);
   }
 
@@ -182,7 +177,7 @@ export class Scene {
    */
   async exit() {
     this.isActive = false;
-    console.log(`🎭 Exiting scene: ${this.name}`);
+    
 
     // Cleanup entities
     for (const entity of this.entities) {
@@ -213,7 +208,7 @@ export class Scene {
    */
   render(renderer) {
     if (!this.isActive) {
-      console.log('Scene: Not active, skipping render');
+      
       return;
     }
 

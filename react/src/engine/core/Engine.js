@@ -52,7 +52,7 @@ export class Engine {
     this.fps = 0;
     this.lastFPSUpdate = 0;
 
-    console.log('🚀 Advanced 3D Game Engine initialized');
+    
   }
 
   /**
@@ -65,12 +65,7 @@ export class Engine {
     this.lastTime = performance.now();
     this.gameLoop(this.lastTime);
 
-    console.log('▶️ Engine started', {
-      targetFPS: this.config.targetFPS,
-      hasRenderer: !!this.renderer,
-      hasScene: !!this.sceneManager.currentScene,
-      canvasSize: `${this.canvas.width}x${this.canvas.height}`
-    });
+    
   }
 
   /**
@@ -80,7 +75,7 @@ export class Engine {
     this.isRunning = false;
     this.input.cleanup();
     this.audio.cleanup();
-    console.log('⏹️ Engine stopped');
+    
   }
 
   /**
@@ -151,7 +146,7 @@ export class Engine {
       // Then let the scene render its overlays/HUD
       this.sceneManager.currentScene.render(this.renderer);
     } else {
-      console.log('Engine: No current scene to render');
+      
     }
 
     // Render debug info if enabled
