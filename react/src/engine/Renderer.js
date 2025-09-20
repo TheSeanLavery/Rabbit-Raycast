@@ -84,16 +84,44 @@ export class Renderer {
       effectiveRayCount = Math.max(30, Math.floor(rayCount * 0.75)); // Reduce to 75% at medium FPS
     }
 
-    // Precompute angle stepping
+    // Precompute frame constants
     const halfFov = fov / 2;
     const startAngle = player.angle - halfFov;
     const angleStep = fov / effectiveRayCount;
+    const columnWidth = this.width / effectiveRayCount;
+    const halfHeight = this.height / 2;
 
-    // Render walls directly per column (no queue, no sort)
+    // Precompute trig for recurrence to avoid per-ray Math.cos/Math.sin
+    const cosStart = Math.cos(startAngle);
+    const sinStart = Math.sin(startAngle);
+    const cosStep = Math.cos(angleStep);
+    const sinStep = Math.sin(angleStep);
+
+    let dirX = cosStart;
+    let dirY = sinStart;
+
+    const useFast = !!(this.engine && this.engine.physics && this.engine.physics.castRayFast);
+
+    // Render walls directly per column using fast raycast and trig recurrence
     for (let x = 0; x < effectiveRayCount; x++) {
-      const rayAngle = startAngle + x * angleStep;
-      const distance = this.castRay(player.x, player.y, rayAngle, map, maxDepth);
-      this.renderWallColumn(x, distance, rayAngle, effectiveRayCount, maxDepth);
+      const distance = useFast
+        ? this.engine.physics.castRayFast(player.x, player.y, dirX, dirY, maxDepth, false)
+        : this.castRay(player.x, player.y, startAngle + x * angleStep, map, maxDepth);
+
+      const screenX = x * columnWidth;
+      this.renderWallColumn(screenX, columnWidth, distance, maxDepth, halfHeight);
+
+      // Rotate direction by angleStep: (dx,dy) = R(angleStep)*(dx,dy)
+      const nextDirX = dirX * cosStep - dirY * sinStep;
+      const nextDirY = dirX * sinStep + dirY * cosStep;
+      dirX = nextDirX;
+      dirY = nextDirY;
+      // Periodically renormalize to mitigate FP drift
+      if ((x & 31) === 31) {
+        const invLen = 1 / Math.hypot(dirX, dirY);
+        dirX *= invLen;
+        dirY *= invLen;
+      }
     }
 
     // Build enemy draw list with distance culling and LOS (reused array)
@@ -150,18 +178,18 @@ export class Renderer {
     }
   }
 
-  renderWallColumn(x, distance, rayAngle, rayCount, maxDepth) {
-    const wallHeight = (this.height / 2) / distance;
-    const wallTop = (this.height / 2) - wallHeight;
-    const wallBottom = (this.height / 2) + wallHeight;
+  renderWallColumn(screenX, columnWidth, distance, maxDepth, halfHeight) {
+    const wallHeight = halfHeight / distance;
+    const wallTop = halfHeight - wallHeight;
+    const wallBottom = halfHeight + wallHeight;
     const shade = 0.7 + 0.3 * (1 - distance / maxDepth);
     const color = Math.floor(255 * shade);
 
     this.ctx.fillStyle = `rgb(${color}, ${Math.floor(color * 0.8)}, ${Math.floor(color * 0.5)})`;
     this.ctx.fillRect(
-      (x / rayCount) * this.width,
+      screenX,
       wallTop,
-      this.width / rayCount + 1,
+      columnWidth + 1,
       wallBottom - wallTop
     );
   }

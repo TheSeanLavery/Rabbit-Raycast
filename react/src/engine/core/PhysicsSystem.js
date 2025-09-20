@@ -13,6 +13,7 @@ export class PhysicsSystem {
     // Nested cache: Map<qx, Map<qy, Map<qa, distance>>>
     this.raycastCache = new Map();
     this.raycastCacheSize = 0;
+    this.enableRaycastCache = true;
   }
 
   init(engine) {
@@ -131,17 +132,20 @@ export class PhysicsSystem {
   castRay(originX, originY, angle, maxDistance = 20) {
     if (!this.world) return maxDistance;
 
-    // Quantize inputs and check nested cache
-    const angleNorm = ((angle % (Math.PI * 2)) + (Math.PI * 2)) % (Math.PI * 2);
-    const qx = (Math.round(originX * 10)) | 0; // 0.1 units
-    const qy = (Math.round(originY * 10)) | 0;
-    const qa = (Math.round(angleNorm * 100)) | 0; // ~0.01 rad
+    // Quantize inputs and check nested cache (optional)
+    let qx, qy, qa, cachedY;
+    if (this.enableRaycastCache) {
+      const angleNorm = ((angle % (Math.PI * 2)) + (Math.PI * 2)) % (Math.PI * 2);
+      qx = (Math.round(originX * 10)) | 0; // 0.1 units
+      qy = (Math.round(originY * 10)) | 0;
+      qa = (Math.round(angleNorm * 100)) | 0; // ~0.01 rad
 
-    const cachedY = this.raycastCache.get(qx);
-    if (cachedY) {
-      const cachedA = cachedY.get(qy);
-      if (cachedA && cachedA.has(qa)) {
-        return cachedA.get(qa);
+      cachedY = this.raycastCache.get(qx);
+      if (cachedY) {
+        const cachedA = cachedY.get(qy);
+        if (cachedA && cachedA.has(qa)) {
+          return cachedA.get(qa);
+        }
       }
     }
 
@@ -214,20 +218,130 @@ export class PhysicsSystem {
     }
 
     // Store in nested cache
-    let byY = this.raycastCache.get(qx);
-    if (!byY) {
-      byY = new Map();
-      this.raycastCache.set(qx, byY);
+    if (this.enableRaycastCache) {
+      let byY = this.raycastCache.get(qx);
+      if (!byY) {
+        byY = new Map();
+        this.raycastCache.set(qx, byY);
+      }
+      let byA = byY.get(qy);
+      if (!byA) {
+        byA = new Map();
+        byY.set(qy, byA);
+      }
+      if (!byA.has(qa)) {
+        this.raycastCacheSize++;
+      }
+      byA.set(qa, distance);
     }
-    let byA = byY.get(qy);
-    if (!byA) {
-      byA = new Map();
-      byY.set(qy, byA);
+    return distance;
+  }
+
+  /**
+   * Fast raycast using precomputed direction vector. Optionally uses cache.
+   */
+  castRayFast(originX, originY, dirX, dirY, maxDistance = 20, useCache = false) {
+    if (!this.world) return maxDistance;
+
+    let qx, qy, qa, cachedY;
+    if (useCache) {
+      const angle = Math.atan2(dirY, dirX);
+      const angleNorm = ((angle % (Math.PI * 2)) + (Math.PI * 2)) % (Math.PI * 2);
+      qx = (Math.round(originX * 10)) | 0;
+      qy = (Math.round(originY * 10)) | 0;
+      qa = (Math.round(angleNorm * 100)) | 0;
+      cachedY = this.raycastCache.get(qx);
+      if (cachedY) {
+        const cachedA = cachedY.get(qy);
+        if (cachedA && cachedA.has(qa)) {
+          return cachedA.get(qa);
+        }
+      }
     }
-    if (!byA.has(qa)) {
-      this.raycastCacheSize++;
+
+    const rayDirX = dirX;
+    const rayDirY = dirY;
+
+    let mapX = Math.floor(originX);
+    let mapY = Math.floor(originY);
+
+    const veryLarge = 1e30;
+    const deltaDistX = rayDirX !== 0 ? Math.abs(1 / rayDirX) : veryLarge;
+    const deltaDistY = rayDirY !== 0 ? Math.abs(1 / rayDirY) : veryLarge;
+
+    let stepX, stepY;
+    let sideDistX, sideDistY;
+
+    if (rayDirX < 0) {
+      stepX = -1;
+      sideDistX = (originX - mapX) * deltaDistX;
+    } else {
+      stepX = 1;
+      sideDistX = (mapX + 1 - originX) * deltaDistX;
     }
-    byA.set(qa, distance);
+
+    if (rayDirY < 0) {
+      stepY = -1;
+      sideDistY = (originY - mapY) * deltaDistY;
+    } else {
+      stepY = 1;
+      sideDistY = (mapY + 1 - originY) * deltaDistY;
+    }
+
+    let hit = false;
+    let side = 0;
+    let distance = 0;
+
+    while (!hit) {
+      if (sideDistX < sideDistY) {
+        sideDistX += deltaDistX;
+        mapX += stepX;
+        side = 0;
+      } else {
+        sideDistY += deltaDistY;
+        mapY += stepY;
+        side = 1;
+      }
+
+      if (this.isWallAtMapCoord(mapX, mapY)) {
+        hit = true;
+        if (side === 0) {
+          distance = (mapX - originX + (1 - stepX) * 0.5) / (rayDirX !== 0 ? rayDirX : 1e-6);
+        } else {
+          distance = (mapY - originY + (1 - stepY) * 0.5) / (rayDirY !== 0 ? rayDirY : 1e-6);
+        }
+        distance = Math.abs(distance);
+        if (!Number.isFinite(distance) || distance <= 0) {
+          distance = 0;
+        }
+        if (distance > maxDistance) distance = maxDistance;
+        break;
+      }
+
+      const approxDist = Math.min(sideDistX, sideDistY);
+      if (approxDist > maxDistance + 1) {
+        distance = maxDistance;
+        break;
+      }
+    }
+
+    if (useCache) {
+      let byY = this.raycastCache.get(qx);
+      if (!byY) {
+        byY = new Map();
+        this.raycastCache.set(qx, byY);
+      }
+      let byA = byY.get(qy);
+      if (!byA) {
+        byA = new Map();
+        byY.set(qy, byA);
+      }
+      if (!byA.has(qa)) {
+        this.raycastCacheSize++;
+      }
+      byA.set(qa, distance);
+    }
+
     return distance;
   }
 

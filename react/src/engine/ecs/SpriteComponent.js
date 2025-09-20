@@ -42,6 +42,12 @@ export class SpriteComponent extends Component {
 
     // Cached values
     this.lastFrameTime = 0;
+
+    // Reusable offscreen canvas for tinting
+    this._tintCanvas = (typeof OffscreenCanvas !== 'undefined')
+      ? new OffscreenCanvas(this.width, this.height)
+      : (typeof document !== 'undefined' ? document.createElement('canvas') : null);
+    this._tintCtx = this._tintCanvas ? this._tintCanvas.getContext('2d') : null;
   }
 
   /**
@@ -81,6 +87,12 @@ export class SpriteComponent extends Component {
   setSize(width, height) {
     this.width = width;
     this.height = height;
+
+    // Keep offscreen canvas in sync with sprite size
+    if (this._tintCanvas) {
+      this._tintCanvas.width = this.width;
+      this._tintCanvas.height = this.height;
+    }
   }
 
   /**
@@ -321,23 +333,23 @@ export class SpriteComponent extends Component {
     // Apply color tint and alpha
     ctx.globalAlpha = this.alpha;
 
-    if (this.color !== '#ffffff') {
-      // Create temporary canvas for tinting
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCanvas.width = this.width;
-      tempCanvas.height = this.height;
+    if (this.color !== '#ffffff' && this._tintCtx) {
+      // Reuse offscreen canvas for tinting
+      if (this._tintCanvas.width !== this.width || this._tintCanvas.height !== this.height) {
+        this._tintCanvas.width = this.width;
+        this._tintCanvas.height = this.height;
+      }
 
-      // Draw original texture
-      tempCtx.drawImage(this.texture, 0, 0, this.width, this.height);
+      const tctx = this._tintCtx;
+      tctx.globalCompositeOperation = 'source-over';
+      tctx.clearRect(0, 0, this.width, this.height);
+      tctx.drawImage(this.texture, 0, 0, this.width, this.height);
+      tctx.globalCompositeOperation = 'multiply';
+      tctx.fillStyle = this.color;
+      tctx.fillRect(0, 0, this.width, this.height);
+      tctx.globalCompositeOperation = 'source-over';
 
-      // Apply tint
-      tempCtx.globalCompositeOperation = 'multiply';
-      tempCtx.fillStyle = this.color;
-      tempCtx.fillRect(0, 0, this.width, this.height);
-
-      // Draw tinted texture
-      ctx.drawImage(tempCanvas, drawX, drawY, this.width, this.height);
+      ctx.drawImage(this._tintCanvas, drawX, drawY, this.width, this.height);
     } else {
       // Draw texture directly
       ctx.drawImage(this.texture, drawX, drawY, this.width, this.height);
