@@ -26,6 +26,7 @@ export class Engine {
     this.canvas = canvas;
     this.config = {
       targetFPS: GAME_CONSTANTS.TARGET_FPS,
+      useVSync: false, // When false, use setInterval-based loop (attempt uncapped)
       enablePhysics: true,
       enableAudio: false,
       debug: false,
@@ -52,7 +53,9 @@ export class Engine {
     this.fps = 0;
     this.lastFPSUpdate = 0;
 
-    
+    // Prebind RAF callback to avoid per-frame closure allocation
+    this._raf = (time) => this.gameLoop(time);
+    this._intervalId = null;
   }
 
   /**
@@ -63,9 +66,14 @@ export class Engine {
 
     this.isRunning = true;
     this.lastTime = performance.now();
-    this.gameLoop(this.lastTime);
-
-    
+    if (this.config.useVSync) {
+      // Kick the loop and schedule next frames via rAF
+      this.gameLoop(this.lastTime);
+    } else {
+      // Run as fast as timers allow (may still be clamped by the browser)
+      if (this._intervalId) clearInterval(this._intervalId);
+      this._intervalId = setInterval(() => this.gameLoop(performance.now()), 0);
+    }
   }
 
   /**
@@ -75,7 +83,10 @@ export class Engine {
     this.isRunning = false;
     this.input.cleanup();
     this.audio.cleanup();
-    
+    if (this._intervalId) {
+      clearInterval(this._intervalId);
+      this._intervalId = null;
+    }
   }
 
   /**
@@ -87,7 +98,8 @@ export class Engine {
     const deltaTime = currentTime - this.lastTime;
 
     // Frame rate limiting for consistent performance
-    if (deltaTime >= this.frameInterval) {
+    const capped = this.config.targetFPS && this.config.targetFPS > 0;
+    if (!capped || deltaTime >= this.frameInterval) {
       // Cap delta time to prevent large jumps (e.g., when tab is inactive)
       const cappedDeltaTime = Math.min(deltaTime, 100); // Max 100ms per frame
 
@@ -105,7 +117,9 @@ export class Engine {
       }
     }
 
-    requestAnimationFrame(time => this.gameLoop(time));
+    if (this.config.useVSync) {
+      requestAnimationFrame(this._raf);
+    }
   }
 
   /**
@@ -222,6 +236,19 @@ export class Engine {
 
     if (newConfig.targetFPS) {
       this.frameInterval = 1000 / this.config.targetFPS;
+    }
+    // If vsync setting changes while running, restart the loop mode
+    if (typeof newConfig.useVSync === 'boolean' && this.isRunning) {
+      if (this._intervalId) {
+        clearInterval(this._intervalId);
+        this._intervalId = null;
+      }
+      // Force immediate reschedule according to new mode
+      if (this.config.useVSync) {
+        requestAnimationFrame(this._raf);
+      } else {
+        this._intervalId = setInterval(() => this.gameLoop(performance.now()), 0);
+      }
     }
   }
 }

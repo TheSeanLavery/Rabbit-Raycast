@@ -386,6 +386,11 @@ export class DoomDemoScene extends Scene {
     const playerY = this.player.y;
     const playerAngle = this.player.angle;
 
+    // Precompute player forward vector and cosine of half-angle cone (30°)
+    const forwardX = Math.cos(playerAngle);
+    const forwardY = Math.sin(playerAngle);
+    const cosHalfCone = Math.cos(Math.PI / 6);
+
     for (const enemy of this.enemies) {
       const dx = enemy.x - playerX;
       const dy = enemy.y - playerY;
@@ -394,11 +399,10 @@ export class DoomDemoScene extends Scene {
       // Check distance first (fastest check)
       if (distance > GAME_CONSTANTS.SHOOT_DISTANCE) continue;
 
-      // Check shooting cone (30 degrees)
-      const angleToEnemy = Math.atan2(dy, dx);
-      const angleDiff = Math.abs(angleToEnemy - playerAngle);
-      const normalizedAngleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
-      if (normalizedAngleDiff > Math.PI / 6) continue;
+      // Dot-product FOV check (avoid atan2/normalize)
+      const invDist = distance > 0 ? 1 / distance : 0;
+      const dot = (dx * invDist) * forwardX + (dy * invDist) * forwardY;
+      if (dot < cosHalfCone) continue;
 
       // Check line of sight (most expensive check, do last)
       if (this.engine.physics.hasLineOfSight(playerX, playerY, enemy.x, enemy.y)) {

@@ -15,7 +15,7 @@ export class Renderer {
     this.width = canvas.width || 240;
     this.height = canvas.height || 320;
 
-    // Reused array for enemy draw items
+    // Reused array for enemy draw items (preallocated objects)
     this._enemyDrawList = [];
 
     
@@ -93,7 +93,7 @@ export class Renderer {
 
     // Build enemy draw list with distance culling and LOS (reused array)
     const enemyDrawList = this._enemyDrawList;
-    enemyDrawList.length = 0;
+    let enemyCount = 0;
     if (enemies && Array.isArray(enemies)) {
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
@@ -113,15 +113,26 @@ export class Renderer {
         const rayDistance = this.castRay(player.x, player.y, angleToEnemy, map, maxDepth);
         if (rayDistance < distance) continue; // blocked
 
-        enemyDrawList.push({ enemy, distance, angle: normalizedAngle });
+        // Reuse or create draw item
+        let item = enemyDrawList[enemyCount];
+        if (!item) {
+          item = { enemy: null, distance: 0, angle: 0 };
+          enemyDrawList[enemyCount] = item;
+        }
+        item.enemy = enemy;
+        item.distance = distance;
+        item.angle = normalizedAngle;
+        enemyCount++;
       }
     }
+    // Trim logical length to active count
+    enemyDrawList.length = enemyCount;
 
     // Sort enemies by distance (far to near) and render
-    if (enemyDrawList.length > 1) {
+    if (enemyCount > 1) {
       enemyDrawList.sort((a, b) => b.distance - a.distance);
     }
-    for (let i = 0; i < enemyDrawList.length; i++) {
+    for (let i = 0; i < enemyCount; i++) {
       const item = enemyDrawList[i];
       this.renderEnemySprite(item.enemy, item.distance, item.angle, fov);
     }

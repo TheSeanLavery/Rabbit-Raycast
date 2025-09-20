@@ -12,8 +12,9 @@ export class SpriteRendererSystem extends System {
     super('SpriteRendererSystem', 10); // High priority for rendering
     this.setRequiredComponents('SpriteComponent', 'TransformComponent');
 
-    // Rendering batches
-    this.spriteBatches = new Map();
+    // Rendering batches (nested map to avoid string keys and reuse batches)
+    // Map<Texture, Map<blendMode, { texture, blendMode, sprites: [], vertexCount }>>
+    this.batchMap = new Map();
     this.maxBatchSize = 100;
 
     // Rendering options
@@ -94,16 +95,17 @@ export class SpriteRendererSystem extends System {
    * Create render batch
    */
   createBatch(texture, blendMode) {
-    const batchKey = `${texture?.src || 'null'}_${blendMode}`;
-    if (!this.spriteBatches.has(batchKey)) {
-      this.spriteBatches.set(batchKey, {
-        texture,
-        blendMode,
-        sprites: [],
-        vertexCount: 0
-      });
+    let byBlend = this.batchMap.get(texture || null);
+    if (!byBlend) {
+      byBlend = new Map();
+      this.batchMap.set(texture || null, byBlend);
     }
-    return this.spriteBatches.get(batchKey);
+    let batch = byBlend.get(blendMode);
+    if (!batch) {
+      batch = { texture, blendMode, sprites: [], vertexCount: 0 };
+      byBlend.set(blendMode, batch);
+    }
+    return batch;
   }
 
   /**
@@ -150,16 +152,21 @@ export class SpriteRendererSystem extends System {
   renderBatches(ctx, viewport) {
     this.renderedSprites = 0;
     this.culledSprites = 0;
-    this.batchesUsed = this.spriteBatches.size;
+    let used = 0;
 
-    // Clear batches for next frame
-    const batches = Array.from(this.spriteBatches.values());
-    this.spriteBatches.clear();
-
-    // Render batches in order
-    for (const batch of batches) {
-      this.renderBatch(batch, ctx, viewport);
+    // Iterate nested maps without creating intermediate arrays
+    for (const byBlend of this.batchMap.values()) {
+      for (const batch of byBlend.values()) {
+        if (batch.sprites.length > 0) {
+          used++;
+          this.renderBatch(batch, ctx, viewport);
+          // Clear sprites for next frame without reallocating arrays
+          batch.sprites.length = 0;
+          batch.vertexCount = 0;
+        }
+      }
     }
+    this.batchesUsed = used;
   }
 
   /**
@@ -245,7 +252,7 @@ export class SpriteRendererSystem extends System {
       renderedSprites: this.renderedSprites,
       culledSprites: this.culledSprites,
       batchesUsed: this.batchesUsed,
-      totalBatches: this.spriteBatches.size,
+      totalBatches: this.getTotalBatchCount ? this.getTotalBatchCount() : this.batchesUsed,
       pixelPerfect: this.pixelPerfect,
       depthSorting: this.sortByDepth,
       cullingEnabled: this.cullingEnabled
@@ -256,7 +263,12 @@ export class SpriteRendererSystem extends System {
    * Clear all batches
    */
   clearBatches() {
-    this.spriteBatches.clear();
+    for (const byBlend of this.batchMap.values()) {
+      for (const batch of byBlend.values()) {
+        batch.sprites.length = 0;
+        batch.vertexCount = 0;
+      }
+    }
   }
 
   /**
