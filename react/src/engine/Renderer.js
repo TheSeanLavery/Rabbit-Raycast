@@ -27,12 +27,14 @@ export class Renderer {
       return;
     }
 
-    // Set canvas dimensions from scene if available
+    // Set canvas dimensions from scene if available (only when changed)
     if (scene.width && scene.height) {
-      this.width = scene.width;
-      this.height = scene.height;
-      this.canvas.width = scene.width;
-      this.canvas.height = scene.height;
+      if (this.width !== scene.width || this.height !== scene.height || this.canvas.width !== scene.width || this.canvas.height !== scene.height) {
+        this.width = scene.width;
+        this.height = scene.height;
+        this.canvas.width = scene.width;
+        this.canvas.height = scene.height;
+      }
     }
 
     this.clearCanvas();

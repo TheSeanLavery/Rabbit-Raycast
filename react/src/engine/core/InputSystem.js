@@ -12,6 +12,8 @@ export class InputSystem {
     // Input state
     this.keys = new Map();
     this.previousKeys = new Map();
+    this.previousButtons = new Map();
+    this.previousTouches = new Map();
     this.mouse = {
       x: 0,
       y: 0,
@@ -29,6 +31,20 @@ export class InputSystem {
 
     // Event callbacks
     this.eventListeners = new Map();
+
+    // Pre-bind DOM event handlers for add/remove symmetry
+    this._onKeyDown = this.handleKeyDown.bind(this);
+    this._onKeyUp = this.handleKeyUp.bind(this);
+    this._onMouseMove = this.handleMouseMove.bind(this);
+    this._onMouseDown = this.handleMouseDown.bind(this);
+    this._onMouseUp = this.handleMouseUp.bind(this);
+    this._onMouseWheel = this.handleMouseWheel.bind(this);
+    this._onTouchStart = this.handleTouchStart.bind(this);
+    this._onTouchMove = this.handleTouchMove.bind(this);
+    this._onTouchEnd = this.handleTouchEnd.bind(this);
+    this._onContextMenu = (e) => e.preventDefault();
+    this._onWindowBlur = this.handleWindowBlur.bind(this);
+    this._onWindowFocus = this.handleWindowFocus.bind(this);
 
     this.setupDefaultMappings();
     this.bindEvents();
@@ -68,26 +84,26 @@ export class InputSystem {
    */
   bindEvents() {
     // Keyboard events
-    window.addEventListener('keydown', this.handleKeyDown.bind(this));
-    window.addEventListener('keyup', this.handleKeyUp.bind(this));
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
 
     // Mouse events
-    window.addEventListener('mousemove', this.handleMouseMove.bind(this));
-    window.addEventListener('mousedown', this.handleMouseDown.bind(this));
-    window.addEventListener('mouseup', this.handleMouseUp.bind(this));
-    window.addEventListener('wheel', this.handleMouseWheel.bind(this));
+    window.addEventListener('mousemove', this._onMouseMove);
+    window.addEventListener('mousedown', this._onMouseDown);
+    window.addEventListener('mouseup', this._onMouseUp);
+    window.addEventListener('wheel', this._onMouseWheel);
 
     // Touch events
-    window.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-    window.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-    window.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+    window.addEventListener('touchstart', this._onTouchStart, { passive: false });
+    window.addEventListener('touchmove', this._onTouchMove, { passive: false });
+    window.addEventListener('touchend', this._onTouchEnd, { passive: false });
 
     // Context menu
-    window.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('contextmenu', this._onContextMenu);
 
     // Window focus events
-    window.addEventListener('blur', this.handleWindowBlur.bind(this));
-    window.addEventListener('focus', this.handleWindowFocus.bind(this));
+    window.addEventListener('blur', this._onWindowBlur);
+    window.addEventListener('focus', this._onWindowFocus);
   }
 
   /**
@@ -201,9 +217,14 @@ export class InputSystem {
    */
   update(deltaTime) {
     // Copy current state to previous state
-    this.previousKeys = new Map(this.keys);
-    this.previousButtons = new Map(this.mouse.buttons);
-    this.previousTouches = new Map(this.touch.touches);
+    this.previousKeys.clear();
+    for (const [key, value] of this.keys) this.previousKeys.set(key, value);
+
+    this.previousButtons.clear();
+    for (const [button, value] of this.mouse.buttons) this.previousButtons.set(button, value);
+
+    this.previousTouches.clear();
+    for (const [id, touch] of this.touch.touches) this.previousTouches.set(id, touch);
   }
 
   /**
@@ -332,18 +353,18 @@ export class InputSystem {
    * Cleanup event listeners
    */
   cleanup() {
-    window.removeEventListener('keydown', this.handleKeyDown);
-    window.removeEventListener('keyup', this.handleKeyUp);
-    window.removeEventListener('mousemove', this.handleMouseMove);
-    window.removeEventListener('mousedown', this.handleMouseDown);
-    window.removeEventListener('mouseup', this.handleMouseUp);
-    window.removeEventListener('wheel', this.handleMouseWheel);
-    window.removeEventListener('touchstart', this.handleTouchStart);
-    window.removeEventListener('touchmove', this.handleTouchMove);
-    window.removeEventListener('touchend', this.handleTouchEnd);
-    window.removeEventListener('contextmenu', () => {});
-    window.removeEventListener('blur', this.handleWindowBlur);
-    window.removeEventListener('focus', this.handleWindowFocus);
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('mousemove', this._onMouseMove);
+    window.removeEventListener('mousedown', this._onMouseDown);
+    window.removeEventListener('mouseup', this._onMouseUp);
+    window.removeEventListener('wheel', this._onMouseWheel);
+    window.removeEventListener('touchstart', this._onTouchStart);
+    window.removeEventListener('touchmove', this._onTouchMove);
+    window.removeEventListener('touchend', this._onTouchEnd);
+    window.removeEventListener('contextmenu', this._onContextMenu);
+    window.removeEventListener('blur', this._onWindowBlur);
+    window.removeEventListener('focus', this._onWindowFocus);
   }
 
   /**
