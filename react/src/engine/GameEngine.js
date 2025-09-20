@@ -55,9 +55,10 @@ export class GameEngine {
 
     // Spawn enemies
     this.enemies = [];
-    levelData.enemySpawns.forEach(spawn => {
+    for (let i = 0; i < levelData.enemySpawns.length; i++) {
+      const spawn = levelData.enemySpawns[i];
       this.enemies.push(new Enemy(spawn.x, spawn.y, this));
-    });
+    }
 
     this.gameStateManager.updateEnemies(this.enemies.length);
   }
@@ -92,7 +93,9 @@ export class GameEngine {
     this.inputHandler.update(deltaTime);
 
     // Update enemies
-    this.enemies.forEach(enemy => enemy.update(deltaTime));
+    for (let i = 0; i < this.enemies.length; i++) {
+      this.enemies[i].update(deltaTime);
+    }
 
     // Update game state
     this.gameStateManager.updateHealth(this.player.health);
@@ -125,36 +128,37 @@ export class GameEngine {
       const maxShootDistance = GAME_CONSTANTS.SHOOT_DISTANCE;
 
       // Find all enemies in shooting range and check line of sight
-      const visibleEnemies = this.enemies.filter(enemy => {
+      const visibleEnemies = [];
+      for (let i = 0; i < this.enemies.length; i++) {
+        const enemy = this.enemies[i];
         const dx = enemy.x - this.player.x;
         const dy = enemy.y - this.player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Check if enemy is within shooting distance
-        if (distance > maxShootDistance) return false;
-
-        // Check if enemy is in front (within reasonable angle)
+        if (distance > maxShootDistance) continue;
         const angleToEnemy = Math.atan2(dy, dx);
         const angleDiff = Math.abs(angleToEnemy - shootAngle);
         const normalizedAngleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
-        if (normalizedAngleDiff > Math.PI / 6) return false; // 30 degree cone
-
-        // Check line of sight - cast ray to enemy position
+        if (normalizedAngleDiff > Math.PI / 6) continue;
         const rayDistance = this.castRay(angleToEnemy);
-        return rayDistance >= distance;
-      });
+        if (rayDistance >= distance) visibleEnemies.push(enemy);
+      }
 
       // Hit the closest visible enemy
       if (visibleEnemies.length > 0) {
-        const closestEnemy = visibleEnemies.reduce((closest, enemy) => {
-          const distClosest = Math.sqrt(
-            (closest.x - this.player.x) ** 2 + (closest.y - this.player.y) ** 2
-          );
+        let closestEnemy = visibleEnemies[0];
+        let closestDist = Math.sqrt(
+          (closestEnemy.x - this.player.x) ** 2 + (closestEnemy.y - this.player.y) ** 2
+        );
+        for (let i = 1; i < visibleEnemies.length; i++) {
+          const enemy = visibleEnemies[i];
           const distCurrent = Math.sqrt(
             (enemy.x - this.player.x) ** 2 + (enemy.y - this.player.y) ** 2
           );
-          return distCurrent < distClosest ? enemy : closest;
-        });
+          if (distCurrent < closestDist) {
+            closestDist = distCurrent;
+            closestEnemy = enemy;
+          }
+        }
 
         closestEnemy.takeDamage(GAME_CONSTANTS.SHOOT_DAMAGE);
       }

@@ -30,12 +30,14 @@
   - Remove logs in `onRender`, joystick updates, and per-frame loops.
 - [x] Replace angle math with dot-product checks
   - For FOV/aim checks use cosine threshold instead of `atan2` + normalize.
-- Throttle expensive enemy work
-  - Distance-based update cadence or cap enemies processed per frame.
+- [x] Throttle expensive enemy work
+  - Distance-based update cadence or cap enemies processed per frame (implemented: frame skipping + distance culling).
 
 ### Engine loop
 - [x] Prebind requestAnimationFrame callback
   - `this._raf = (t) => this.gameLoop(t)` and reuse it.
+- [x] Optional uncapped mode (disable vsync)
+  - Configure `useVSync: false` and `targetFPS: 0` (or via `engine.setConfig`).
 
 ### InputSystem (remaining)
 - Avoid payload allocations in emits
@@ -48,8 +50,8 @@
   - Iterate Maps directly or reuse a working array instead of `Array.from`.
 - Sort only when necessary
   - Track dirty flags for layer/sorting changes; avoid sorting every render.
-- Preallocate and reuse batch containers
-  - Keep batch objects and clear their contents each frame.
+- [x] Preallocate and reuse batch containers
+  - Keep batch objects and clear their contents each frame (implemented via nested batch maps and length=0 clears).
 
 ### ParticleSystem
 - Micro-optimizations
@@ -57,14 +59,15 @@
   - Optional: group by color to reduce `fillStyle` changes when particle counts grow.
 
 ### Misc/quality
-- Avoid template strings/object literals in per-frame logs and loops.
-- Prefer for-loops over forEach/map/filter in hot paths.
+- [x] Avoid template strings/object literals in per-frame logs and loops.
+- [x] Prefer for-loops over forEach/map/filter in hot paths.
 - Consider typed arrays for per-column intermediates if profiling shows pressure.
 
 ## Recommended next steps (implement in order)
 1) ECS sprite systems: sort only when necessary; consider dirty flags.
 2) Renderer: avoid repeated trig/Math in hot paths (precompute where feasible).
 3) InputSystem: minimize payload allocations in emits.
-4) Physics: consider further micro-optimizations if profiling indicates.
+4) ParticleSystem: optional grouping by color and fewer save/restore.
+5) Physics: consider further micro-optimizations if profiling indicates.
 
 

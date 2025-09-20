@@ -115,18 +115,26 @@ export class Signal {
    * Sort listeners by priority
    */
   sortListeners() {
-    const sorted = Array.from(this.listeners.values()).sort((a, b) => b.priority - a.priority);
+    const arr = Array.from(this.listeners.values());
+    arr.sort((a, b) => b.priority - a.priority);
     this.listeners.clear();
-    sorted.forEach(data => this.listeners.set(data.id, data));
+    for (let i = 0; i < arr.length; i++) {
+      const data = arr[i];
+      this.listeners.set(data.id, data);
+    }
   }
 
   /**
    * Sort one-time listeners by priority
    */
   sortOnceListeners() {
-    const sorted = Array.from(this.onceListeners.values()).sort((a, b) => b.priority - a.priority);
+    const arr = Array.from(this.onceListeners.values());
+    arr.sort((a, b) => b.priority - a.priority);
     this.onceListeners.clear();
-    sorted.forEach(data => this.onceListeners.set(data.id, data));
+    for (let i = 0; i < arr.length; i++) {
+      const data = arr[i];
+      this.onceListeners.set(data.id, data);
+    }
   }
 }
 

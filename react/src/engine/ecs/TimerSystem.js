@@ -589,7 +589,9 @@ export class TimerUtils {
 
   static parallel(callbacks, delay = 0) {
     TimerUtils.setTimeout(() => {
-      callbacks.forEach(callback => callback());
+      for (let i = 0; i < callbacks.length; i++) {
+        callbacks[i]();
+      }
     }, delay);
   }
 }

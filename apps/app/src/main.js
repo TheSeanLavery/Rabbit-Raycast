@@ -57,7 +57,7 @@ class DoomEngine {
     
     // Performance optimization
     this.lastTime = 0;
-    this.targetFPS = 30; // Reduced for R1 performance
+    this.targetFPS = 120; // Reduced for R1 performance
     this.frameInterval = 1000 / this.targetFPS;
     
     this.running = false;

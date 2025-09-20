@@ -84,9 +84,14 @@ export class Renderer {
       effectiveRayCount = Math.max(30, Math.floor(rayCount * 0.75)); // Reduce to 75% at medium FPS
     }
 
+    // Precompute angle stepping
+    const halfFov = fov / 2;
+    const startAngle = player.angle - halfFov;
+    const angleStep = fov / effectiveRayCount;
+
     // Render walls directly per column (no queue, no sort)
     for (let x = 0; x < effectiveRayCount; x++) {
-      const rayAngle = player.angle - fov / 2 + (x / effectiveRayCount) * fov;
+      const rayAngle = startAngle + x * angleStep;
       const distance = this.castRay(player.x, player.y, rayAngle, map, maxDepth);
       this.renderWallColumn(x, distance, rayAngle, effectiveRayCount, maxDepth);
     }
@@ -95,6 +100,10 @@ export class Renderer {
     const enemyDrawList = this._enemyDrawList;
     let enemyCount = 0;
     if (enemies && Array.isArray(enemies)) {
+      // Precompute player forward and cosine of half FOV for fast checks
+      const forwardX = Math.cos(player.angle);
+      const forwardY = Math.sin(player.angle);
+      const cosHalfFov = Math.cos(halfFov);
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
         const dx = enemy.x - player.x;
@@ -102,14 +111,13 @@ export class Renderer {
         const distance = Math.sqrt(dx * dx + dy * dy);
         if (distance > maxDepth * 1.5) continue; // distance culling
 
-        // Angle relative to player
-        const angleToEnemy = Math.atan2(dy, dx);
-        let normalizedAngle = angleToEnemy - player.angle;
-        while (normalizedAngle > Math.PI) normalizedAngle -= 2 * Math.PI;
-        while (normalizedAngle < -Math.PI) normalizedAngle += 2 * Math.PI;
-        if (Math.abs(normalizedAngle) >= fov / 2) continue; // not in FOV
+        // FOV check via dot product (avoid extra trig/normalization)
+        const invDist = distance > 0 ? 1 / distance : 0;
+        const dot = (dx * invDist) * forwardX + (dy * invDist) * forwardY;
+        if (dot < cosHalfFov) continue; // not in FOV
 
-        // Line of sight
+        // Line of sight (requires angle)
+        const angleToEnemy = Math.atan2(dy, dx);
         const rayDistance = this.castRay(player.x, player.y, angleToEnemy, map, maxDepth);
         if (rayDistance < distance) continue; // blocked
 
@@ -121,7 +129,11 @@ export class Renderer {
         }
         item.enemy = enemy;
         item.distance = distance;
-        item.angle = normalizedAngle;
+        // Compute normalized relative angle without loops
+        let rel = angleToEnemy - player.angle;
+        // Normalize to [-PI, PI]
+        rel = ((rel + Math.PI) % (2 * Math.PI)) - Math.PI;
+        item.angle = rel;
         enemyCount++;
       }
     }

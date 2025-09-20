@@ -344,8 +344,11 @@ export class InputSystem {
    */
   emit(event, data) {
     const listeners = this.eventListeners.get(event);
-    if (listeners) {
-      listeners.forEach(callback => callback(data));
+    if (listeners && listeners.length) {
+      for (let i = 0; i < listeners.length; i++) {
+        const callback = listeners[i];
+        callback(data);
+      }
     }
   }
 

@@ -179,15 +179,18 @@ export class DoomDemoScene extends Scene {
     
 
     // Clear existing enemies
-    this.enemies.forEach(enemy => this.removeEntity(enemy));
+    for (let i = 0; i < this.enemies.length; i++) {
+      this.removeEntity(this.enemies[i]);
+    }
     this.enemies = [];
 
     // Spawn enemies
-    levelData.enemySpawns.forEach(spawn => {
+    for (let i = 0; i < levelData.enemySpawns.length; i++) {
+      const spawn = levelData.enemySpawns[i];
       const enemy = new Enemy(spawn.x, spawn.y, this);
       this.enemies.push(enemy);
       this.addEntity(enemy);
-    });
+    }
 
     this.gameStats.enemies = this.enemies.length;
     this.gameStats.level = levelIndex;
